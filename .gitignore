@@ -36,8 +36,8 @@ ENV/
 *.swo
 *~
 
-# Crawl4AI browser data
-.crawl4ai/
+# Playwright browser data
+.playwright/
 playwright-browsers/
 
 # Output files

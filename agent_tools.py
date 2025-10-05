@@ -210,9 +210,10 @@ async def web_search(args: Dict[str, Any]) -> Dict[str, Any]:
 # Tool 3: Scrape URL
 async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Wraps the existing scrape() function from main.py
+    Wraps the scraper by running it in a subprocess to avoid event loop conflicts.
 
     This is the bridge between the agent and existing scraper.
+    Runs scraper in isolated subprocess to prevent asyncio/Twisted reactor conflicts.
 
     Args:
         args: Dict containing:
@@ -224,55 +225,122 @@ async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Tool response with scraped data
     """
-    from main import scrape
-    from models import ExtractionError, SchemaGenerationError, StrategyRoutingError
-    import logging
+    import asyncio
+    import os
+    import sys
 
     url = args["url"]
     extraction_query = args["extraction_query"]
 
-    # Temporarily suppress verbose logging from scraper
-    scraper_logger = logging.getLogger("universal_scraper")
-    original_level = scraper_logger.level
-    scraper_logger.setLevel(logging.WARNING)
+    # Prepare subprocess input
+    scraper_input = {
+        "url": url,
+        "query": extraction_query,
+        "options": {
+            "respect_robots_txt": True,
+            "skip_validation": args.get("skip_validation", False),
+            "prefer_css": args.get("prefer_css", False)
+        }
+    }
 
     try:
-        # Call existing scraper
-        result = await scrape(
-            url=url,
-            query=extraction_query,
-            respect_robots_txt=True,
-            skip_validation=args.get("skip_validation", False),
-            prefer_css=args.get("prefer_css", False),
-            stats=None  # Could add stats tracking later
+        # Get path to scraper subprocess script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        scraper_script = os.path.join(script_dir, "scraper_subprocess.py")
+
+        logger.info(f"🔧 Running scraper in subprocess: {url}")
+
+        # Run scraper in subprocess
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,  # Use same Python interpreter
+            scraper_script,
+            json.dumps(scraper_input),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
         )
 
-        return {
-            "content": [{
-                "type": "text",
-                "text": json.dumps({
-                    "success": True,
-                    "url": url,
-                    "data": result
-                }, indent=2)
-            }]
-        }
+        # Wait for completion with timeout (120 seconds)
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=120.0
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": json.dumps({
+                        "success": False,
+                        "url": url,
+                        "error": "Scraper timeout (120s exceeded)"
+                    }, indent=2)
+                }],
+                "is_error": True
+            }
 
-    except (ExtractionError, SchemaGenerationError, StrategyRoutingError) as e:
+        # Parse result
+        if process.returncode == 0:
+            result = json.loads(stdout.decode('utf-8'))
+
+            if result.get("success"):
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": json.dumps({
+                            "success": True,
+                            "url": url,
+                            "data": result["data"]
+                        }, indent=2)
+                    }]
+                }
+            else:
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": json.dumps({
+                            "success": False,
+                            "url": url,
+                            "error": result.get("error", "Unknown error"),
+                            "error_type": result.get("error_type", "UnknownError")
+                        }, indent=2)
+                    }],
+                    "is_error": True
+                }
+        else:
+            # Non-zero exit code
+            error_output = stderr.decode('utf-8') if stderr else "No error output"
+            logger.error(f"Scraper subprocess failed: {error_output}")
+
+            return {
+                "content": [{
+                    "type": "text",
+                    "text": json.dumps({
+                        "success": False,
+                        "url": url,
+                        "error": f"Scraper process failed: {error_output[:500]}"
+                    }, indent=2)
+                }],
+                "is_error": True
+            }
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse scraper output: {e}")
         return {
             "content": [{
                 "type": "text",
                 "text": json.dumps({
                     "success": False,
                     "url": url,
-                    "error": str(e),
-                    "error_type": type(e).__name__
+                    "error": f"Invalid JSON from scraper: {str(e)}"
                 }, indent=2)
             }],
             "is_error": True
         }
 
     except Exception as e:
+        logger.error(f"Scraper subprocess error: {e}")
         return {
             "content": [{
                 "type": "text",
@@ -284,6 +352,3 @@ async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
             }],
             "is_error": True
         }
-    finally:
-        # Restore original logging level
-        scraper_logger.setLevel(original_level)

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     WEB_SEARCH_MAX_RESULTS: int = 5  # Default number of search results
     EXA_SEARCH_TYPE: Literal["auto", "neural", "keyword"] = "auto"  # Exa search mode
 
-    # Crawl4AI Configuration
+    # Web Scraping Configuration
     BROWSER_HEADLESS: bool = True
     BROWSER_TYPE: Literal["chromium", "firefox", "webkit"] = "chromium"
     ENABLE_STEALTH: bool = False  # Disabled due to playwright_stealth dependency issue
@@ -45,6 +45,11 @@ class Settings(BaseSettings):
 
     # Caching
     CACHE_MODE: Literal["ENABLED", "DISABLED", "BYPASS"] = "BYPASS"
+
+    # JS-Heavy Site Handling (Playwright Best Practices)
+    ENABLE_FULL_PAGE_SCAN: bool = True  # Enable page scrolling for JS-heavy sites
+    IMAGE_WAIT_ENABLED: bool = True  # Wait for images on e-commerce sites
+    SCROLL_DELAY: float = 0.5  # Delay between scroll steps (seconds)
 
     class Config:
         env_file = ".env"

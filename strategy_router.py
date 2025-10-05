@@ -11,15 +11,19 @@ from typing import Dict, Any, Optional, Literal
 from enum import Enum
 
 from anthropic import Anthropic
-from crawl4ai import (
-    JsonCssExtractionStrategy,
-    LLMExtractionStrategy,
-    LLMConfig
-)
 
 from config import settings
 from models import StrategyRoutingError
 from utils import logger
+
+
+# Simple strategy container (replaces Crawl4AI strategy objects)
+class Strategy:
+    """Simple container for strategy information - used with Scrapy"""
+    def __init__(self, strategy_type: str, schema: Dict[str, Any], query: Optional[str] = None):
+        self.type = strategy_type
+        self.schema = schema
+        self.query = query
 
 
 class StrategyType(str, Enum):
@@ -57,13 +61,8 @@ IMPORTANT: If the query asks for "summaries", "sentiment", "categories", etc., a
 Answer with ONLY one word: "SEMANTIC" or "CSS"."""
 
     def __init__(self):
-        """Initialize strategy router"""
+        """Initialize strategy router (Scrapy mode)"""
         self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self.llm_config = LLMConfig(
-            provider=f"anthropic/{settings.CLAUDE_MODEL}",
-            api_token=settings.ANTHROPIC_API_KEY,
-            temperature=settings.CLAUDE_TEMPERATURE
-        )
 
     def choose_strategy(
         self,
@@ -201,7 +200,7 @@ Answer with ONLY one word: "SEMANTIC" or "CSS"."""
         self,
         json_schema: Dict[str, Any],
         query: str
-    ) -> tuple[StrategyType, LLMExtractionStrategy]:
+    ) -> tuple[StrategyType, Strategy]:
         """
         Create LLM extraction strategy.
 
@@ -210,20 +209,12 @@ Answer with ONLY one word: "SEMANTIC" or "CSS"."""
             query: Natural language instruction
 
         Returns:
-            Tuple of (StrategyType.LLM, LLMExtractionStrategy instance)
+            Tuple of (StrategyType.LLM, Strategy instance)
         """
-        # Note: fit_markdown uses content filter which may remove dynamic content on some sites
-        # For e-commerce with JS-loaded prices/images, regular markdown might be more reliable
-        strategy = LLMExtractionStrategy(
-            llm_config=self.llm_config,
+        strategy = Strategy(
+            strategy_type="llm",
             schema=json_schema,
-            extraction_type="schema",  # Structured JSON output
-            instruction=query,
-            input_format="markdown",  # Use regular markdown for now (fit_markdown has quality issues)
-            chunk_token_threshold=4000,  # Increased from 2000 - markdown is more concise
-            overlap_rate=0.1,  # 10% overlap between chunks
-            apply_chunking=False  # Disable for single-page scraping (faster)
-            # Note: Re-enable if scraping very long pages (10k+ tokens)
+            query=query
         )
 
         logger.debug(f"Created LLM strategy with schema: {json_schema.get('title', 'Unknown')}")
@@ -232,7 +223,7 @@ Answer with ONLY one word: "SEMANTIC" or "CSS"."""
     def _create_css_strategy(
         self,
         css_schema: Dict[str, Any]
-    ) -> tuple[StrategyType, JsonCssExtractionStrategy]:
+    ) -> tuple[StrategyType, Strategy]:
         """
         Create CSS extraction strategy.
 
@@ -244,7 +235,7 @@ Answer with ONLY one word: "SEMANTIC" or "CSS"."""
             css_schema: CSS extraction schema with selectors
 
         Returns:
-            Tuple of (StrategyType.CSS, JsonCssExtractionStrategy instance)
+            Tuple of (StrategyType.CSS, Strategy instance)
 
         Example css_schema:
         {
@@ -255,7 +246,11 @@ Answer with ONLY one word: "SEMANTIC" or "CSS"."""
             ]
         }
         """
-        strategy = JsonCssExtractionStrategy(css_schema)
+        strategy = Strategy(
+            strategy_type="css",
+            schema=css_schema,
+            query=None
+        )
 
         logger.debug(f"Created CSS strategy with baseSelector: {css_schema.get('baseSelector')}")
         return (StrategyType.CSS, strategy)
@@ -289,7 +284,7 @@ def choose_strategy(
 def create_llm_strategy(
     json_schema: Dict[str, Any],
     query: str
-) -> tuple[StrategyType, LLMExtractionStrategy]:
+) -> tuple[StrategyType, Strategy]:
     """
     Create LLM extraction strategy directly.
 
@@ -298,14 +293,14 @@ def create_llm_strategy(
         query: Natural language instruction
 
     Returns:
-        Tuple of (StrategyType.LLM, LLMExtractionStrategy instance)
+        Tuple of (StrategyType.LLM, Strategy instance)
     """
     return _router._create_llm_strategy(json_schema, query)
 
 
 def create_css_strategy(
     css_schema: Dict[str, Any]
-) -> tuple[StrategyType, JsonCssExtractionStrategy]:
+) -> tuple[StrategyType, Strategy]:
     """
     Create CSS extraction strategy directly.
 
@@ -313,6 +308,6 @@ def create_css_strategy(
         css_schema: CSS extraction schema with selectors
 
     Returns:
-        Tuple of (StrategyType.CSS, JsonCssExtractionStrategy instance)
+        Tuple of (StrategyType.CSS, Strategy instance)
     """
     return _router._create_css_strategy(css_schema)

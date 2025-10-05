@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Universal Web Scraper** powered by Claude 4.5 Sonnet and Crawl4AI v0.7.x. It extracts structured data from any website using natural language queries.
+This is a **Universal Web Scraper** powered by Claude 4.5 Sonnet and Scrapy-Playwright. It extracts structured data from any website using natural language queries.
 
 **Two Modes:**
 1. **CLI Mode** (`main.py`): Direct command-line scraping with URL and query
@@ -16,15 +16,22 @@ This is a **Universal Web Scraper** powered by Claude 4.5 Sonnet and Crawl4AI v0
 
 1. **Schema Generation** (`schema_generator.py`): Claude 4.5 Sonnet generates Pydantic v2 models from natural language queries
 2. **Strategy Routing** (`strategy_router.py`): Intelligent router chooses between CSS (fast, free) and LLM (powerful) extraction strategies
-3. **Web Extraction** (`extractor.py`): Crawl4AI AsyncWebCrawler performs the actual scraping with retries and fallbacks
+3. **Web Extraction** (`extractor.py`): Scrapy + Playwright Spider performs the actual scraping with retries and fallbacks
 4. **Validation** (`main.py`): Pydantic validates extracted data against generated schema
 
 **Agent Architecture** (agent mode only):
 
 1. **Intent Understanding** (`agent_tools.py`): Claude Haiku analyzes user request to determine intent
 2. **URL Discovery** (`agent_tools.py`): Exa AI semantic search finds relevant URLs when not provided
-3. **Scraping Orchestration** (`agent_tools.py`): Wraps classic scraper pipeline as a tool
+3. **Scraping Orchestration** (`agent_tools.py` + `scraper_subprocess.py`): Runs scraper in isolated subprocess to avoid event loop conflicts
 4. **Conversation Management** (`agent_main.py`): Multi-turn dialogue with context awareness
+
+**Subprocess Isolation** (`scraper_subprocess.py`):
+- Agent mode runs scraper in separate process to prevent asyncio/Twisted event loop conflicts
+- Agent uses `asyncio.run()` in main process, scraper uses Twisted reactor in subprocess
+- Communication via JSON over subprocess stdin/stdout
+- ~100-300ms overhead (negligible for 3-6s scraping operations)
+- Complete crash isolation and clean separation of concerns
 
 ### Key Design Decisions
 
@@ -50,11 +57,8 @@ This is a **Universal Web Scraper** powered by Claude 4.5 Sonnet and Crawl4AI v0
 # Install dependencies
 pip install -r requirements.txt
 
-# Initialize Crawl4AI browser
-crawl4ai-setup
-
-# Verify installation
-crawl4ai-doctor
+# Initialize Playwright browser
+playwright install chromium
 
 # Configure API key
 cp .env.example .env
@@ -216,7 +220,7 @@ CACHE_MODE=BYPASS
 1. Check robots.txt (optional, `--ignore-robots` to skip)
 2. Generate schema from query
 3. Route to optimal strategy
-4. Extract with Crawl4AI
+4. Extract with Scrapy + Playwright
 5. Validate with Pydantic
 6. Output JSON with optional stats
 

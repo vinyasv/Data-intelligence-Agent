@@ -8,6 +8,7 @@ Includes intelligent wait strategies and multi-source extraction.
 import json
 import asyncio
 import re
+import uuid
 from typing import Dict, Any, Optional, Tuple, List
 from crawl4ai import (
     AsyncWebCrawler,
@@ -39,6 +40,24 @@ class WebExtractor:
         """
         self.use_undetected = use_undetected
 
+        # Build Bright Data proxy configuration if enabled
+        proxy_config = None
+        if settings.PROXY_ENABLED and settings.BRIGHTDATA_USERNAME and settings.BRIGHTDATA_PASSWORD:
+            # Add session ID for sticky sessions if rotation mode is "session"
+            username = settings.BRIGHTDATA_USERNAME
+            if settings.PROXY_ROTATION == "session" and "session-" not in username:
+                session_id = str(uuid.uuid4())[:8]  # Short session ID
+                username = f"{username}-session-{session_id}"
+                logger.info(f"🔄 Using sticky session proxy: {session_id}")
+
+            proxy_server = f"http://{settings.BRIGHTDATA_HOST}:{settings.BRIGHTDATA_PORT}"
+            proxy_config = {
+                "server": proxy_server,
+                "username": username,
+                "password": settings.BRIGHTDATA_PASSWORD
+            }
+            logger.info(f"🌐 Bright Data proxy enabled: {proxy_server}")
+
         self.browser_config = BrowserConfig(
             browser_type=settings.BROWSER_TYPE,
             headless=settings.BROWSER_HEADLESS,
@@ -56,6 +75,8 @@ class WebExtractor:
             # Performance options
             text_mode=False,  # Enable images
             light_mode=False,  # Full features
+            # Proxy configuration
+            proxy_config=proxy_config,
         )
 
         # Create undetected adapter if needed

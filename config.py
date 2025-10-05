@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     ENABLE_STEALTH: bool = False  # Disabled due to playwright_stealth dependency issue
     # Use UndetectedAdapter instead for better bot detection bypass
 
+    # Bright Data Residential Proxy Configuration
+    PROXY_ENABLED: bool = False
+    BRIGHTDATA_USERNAME: Optional[str] = None  # Format: customer-USER-zone-ZONE or customer-USER-zone-ZONE-session-SESSION_ID
+    BRIGHTDATA_PASSWORD: Optional[str] = None
+    BRIGHTDATA_HOST: str = "zproxy.lum-superproxy.io"  # Bright Data super proxy host
+    BRIGHTDATA_PORT: int = 22225  # Default port for residential proxies
+    PROXY_ROTATION: str = "request"  # "request" for new IP each time, "session" for sticky sessions
+
     # Performance
     CHUNK_TOKEN_THRESHOLD: int = 2000
     WORD_COUNT_THRESHOLD: int = 10

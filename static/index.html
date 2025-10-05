@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Intelligence Agent</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            background: #fff;
+            color: #000;
+            line-height: 1.6;
+            overflow: hidden;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #landing {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        #chatView {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        #chatView.active {
+            display: flex !important;
+        }
+        
+        .header {
+            padding: 2rem 2rem 1rem 2rem;
+            flex-shrink: 0;
+        }
+        
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 2rem;
+        }
+        
+        .input-section {
+            padding: 1rem 2rem 2rem 2rem;
+            border-top: 1px solid #eee;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #000;
+        }
+        
+        .subtitle {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 0;
+        }
+        
+        .input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        input {
+            flex: 1;
+            padding: 0.75rem;
+            font-size: 0.9rem;
+            font-family: 'IBM Plex Mono', monospace;
+            border: 1px solid #ddd;
+            background: #fff;
+            outline: none;
+        }
+        
+        input:focus {
+            border-color: #000;
+        }
+        
+        input::placeholder {
+            color: #999;
+        }
+        
+        button {
+            padding: 0.75rem 1.5rem;
+            background: #000;
+            color: #fff;
+            border: 1px solid #000;
+            font-size: 0.9rem;
+            font-family: 'IBM Plex Mono', monospace;
+            cursor: pointer;
+            font-weight: 400;
+        }
+        
+        button:hover {
+            background: #333;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            border-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .chat-container {
+            display: none;
+        }
+        
+        .message {
+            margin-bottom: 2.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .message:last-child {
+            margin-bottom: 1rem;
+        }
+        
+        .message-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #000;
+        }
+        
+        .message.user .message-label {
+            color: #000;
+        }
+        
+        .message.assistant .message-label {
+            color: #666;
+        }
+        
+        .message-content {
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .message.user .message-content {
+            color: #000;
+        }
+        
+        .message.assistant .message-content {
+            color: #555;
+        }
+        
+        .message-content p {
+            margin-bottom: 0.75rem;
+        }
+        
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .message-content strong {
+            font-weight: 500;
+        }
+        
+        .message-content code {
+            background: #f5f5f5;
+            padding: 0.2rem 0.4rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        
+        .loading {
+            color: #999;
+            padding: 1rem 0;
+        }
+        
+        .footer {
+            text-align: center;
+            color: #999;
+            font-size: 0.75rem;
+            padding: 2rem 0;
+        }
+        
+        .footer a {
+            color: #666;
+            text-decoration: none;
+        }
+        
+        .landing-center {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 60vh;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="landing">
+            <div class="landing-center">
+                <div style="padding: 0 2rem;">
+                    <h1>Data Intelligence Agent</h1>
+                    <p class="subtitle">Grab the data you want- instantly</p>
+                </div>
+            </div>
+            <div class="input-section">
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        id="queryInput" 
+                        placeholder="Ask the agent to grab structured data from any URL"
+                        autocomplete="off"
+                    />
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="chatView">
+            <div class="header">
+                <h1>Data Intelligence Agent</h1>
+                <p class="subtitle">Grab the data you want- instantly</p>
+            </div>
+            
+            <div class="content">
+                <div class="chat-container" id="chatContainer"></div>
+            </div>
+            
+            <div class="input-section">
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        placeholder="Ask me anything..."
+                        autocomplete="off"
+                    />
+                    <button onclick="sendChatMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let messages = [];
+        
+        // Enter key handling
+        document.getElementById('queryInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+        
+        async function sendMessage() {
+            const input = document.getElementById('queryInput');
+            const query = input.value.trim();
+            
+            if (!query) return;
+            
+            // Add user message immediately
+            messages.push({ role: 'user', content: query });
+            
+            // Switch to chat view immediately
+            document.getElementById('landing').style.display = 'none';
+            const chatView = document.getElementById('chatView');
+            chatView.style.display = 'flex';
+            chatView.classList.add('active');
+            renderMessages();
+            
+            // Show loading
+            const chatContainer = document.getElementById('chatContainer');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = 'Processing...';
+            chatContainer.appendChild(loadingDiv);
+            
+            try {
+                // Call API
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: query })
+                });
+                
+                const data = await response.json();
+                
+                if (data.response) {
+                    messages.push({ role: 'assistant', content: data.response });
+                } else {
+                    messages.push({ role: 'assistant', content: 'Error: ' + (data.error || 'Unknown error') });
+                }
+            } catch (error) {
+                messages.push({ role: 'assistant', content: 'Error: ' + error.message });
+            }
+            
+            // Remove loading and render
+            chatContainer.removeChild(loadingDiv);
+            renderMessages();
+        }
+        
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const query = input.value.trim();
+            
+            if (!query) return;
+            
+            // Clear input and add message
+            input.value = '';
+            messages.push({ role: 'user', content: query });
+            renderMessages();
+            
+            // Scroll to bottom
+            const content = document.querySelector('.content');
+            content.scrollTop = content.scrollHeight;
+            
+            // Show loading
+            const chatContainer = document.getElementById('chatContainer');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.textContent = 'Processing...';
+            chatContainer.appendChild(loadingDiv);
+            
+            // Scroll to bottom again
+            content.scrollTop = content.scrollHeight;
+            
+            try {
+                // Call API
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: query })
+                });
+                
+                const data = await response.json();
+                
+                if (data.response) {
+                    messages.push({ role: 'assistant', content: data.response });
+                } else {
+                    messages.push({ role: 'assistant', content: 'Error: ' + (data.error || 'Unknown error') });
+                }
+            } catch (error) {
+                messages.push({ role: 'assistant', content: 'Error: ' + error.message });
+            }
+            
+            // Remove loading and render
+            chatContainer.removeChild(loadingDiv);
+            renderMessages();
+            
+            // Scroll to bottom
+            content.scrollTop = content.scrollHeight;
+        }
+        
+        function formatMessage(text) {
+            // Convert markdown-style formatting to HTML
+            let formatted = text;
+            
+            // Convert bold **text** to <strong>
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert headers
+            formatted = formatted.replace(/^### (.*?)$/gm, '<h4>$1</h4>');
+            formatted = formatted.replace(/^## (.*?)$/gm, '<h3>$1</h3>');
+            formatted = formatted.replace(/^# (.*?)$/gm, '<h2>$1</h2>');
+            
+            // Convert bullet points
+            formatted = formatted.replace(/^[•\-\*] (.*?)$/gm, '  • $1');
+            
+            // Convert numbered lists
+            formatted = formatted.replace(/^\d+\. (.*?)$/gm, '  $&');
+            
+            // Convert inline code `code`
+            formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+            
+            // Convert line breaks to paragraphs
+            formatted = formatted.split('\n\n').map(p => 
+                p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : ''
+            ).join('');
+            
+            return formatted;
+        }
+        
+        function renderMessages() {
+            const chatContainer = document.getElementById('chatContainer');
+            chatContainer.style.display = 'block';
+            chatContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.role}`;
+                
+                const label = document.createElement('div');
+                label.className = 'message-label';
+                label.textContent = msg.role === 'user' ? 'You' : 'Agent';
+                
+                const content = document.createElement('div');
+                content.className = 'message-content';
+                content.innerHTML = formatMessage(msg.content);
+                
+                messageDiv.appendChild(label);
+                messageDiv.appendChild(content);
+                chatContainer.appendChild(messageDiv);
+            });
+        }
+    </script>
+</body>
+</html>

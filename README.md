@@ -1,37 +1,37 @@
-# Universal Web Scraper with Intelligent Agent
+# Enterprise-Ready Web Data Agent
 
-A production-ready universal web scraping system powered by **Claude 4.5 Sonnet** and **Crawl4AI v0.7.x**. Now featuring an **intelligent conversational agent** with automatic URL discovery!
+Turn any web page into reliable, structured data—built for product, data, and engineering teams. Powered by **Claude 4.5 Sonnet** and **Crawl4AI v0.7.x**, with an **intelligent conversational agent** for non-technical users.
 
-**Recent Updates:**
-- ✅ Migrated from Cursor SDK to direct Anthropic API (no session limits!)
-- ✅ Fixed Exa search JSON serialization issues  
-- ✅ Clean CLI output (internal logs hidden by default)
-- ✅ Added `--verbose` flag for debugging
+**What you get:** Rapid setup, predictable outputs, and controls that enterprises need (retries, rate limits, robots compliance, and validation).
 
-## Key Features
+## Why teams use this
 
-### Two Modes of Operation
+- **Faster time-to-insight**: Ask in natural language; get validated JSON.
+- **Flexible extraction**: Auto-routes between CSS scraping and LLM understanding.
+- **Operationally safe**: Built-in rate limiting, retries, and robots.txt awareness.
+- **Composable**: CLI, Python APIs, and simple JSON outputs for your pipelines.
+- **Cost-aware**: Lean defaults and transparent control over model usage.
 
-#### **Agent Mode** (NEW!)
-- **Conversational Interface**: Chat naturally with the agent
-- **Automatic URL Discovery**: Uses Exa AI semantic search to find websites
-- **Intent Understanding**: Claude Haiku analyzes your requests
-- **Multi-Turn Conversations**: Refine results through dialogue
-- **Smart Clarification**: Asks for specifics when requests are ambiguous
+## Enterprise use cases
 
-#### 🔧 **CLI Mode** (Classic)
-- **Direct Scraping**: Provide URL and query, get results
-- **Fast & Simple**: Perfect when you know the exact URL
-- **Scriptable**: Easy to integrate into workflows
+- **E‑commerce Pricing Intelligence**: Track prices, promotions, availability, shipping thresholds, and seller mix across product pages.
+- **Competitive Intelligence**: Monitor feature pages, changelogs, bundles, plan matrices, and comparison tables.
+- **Catalog QA & Content Governance**: Validate presence/format of key attributes (images, dimensions, materials, disclaimers) across PDPs.
+- **MAP/Compliance Audits**: Detect policy violations, restricted terms, and disclaimer placement.
+- **News & Sentiment Monitoring**: Extract headlines, entities, tone, and summaries from publisher pages.
+- **Lead Enrichment & Prospecting**: Pull company metadata, pricing hints, tech stack mentions, and contact artifacts.
+- **Marketplace Monitoring**: Seller count, buy box dynamics, ratings, and review deltas.
+- **Travel & Ticketing**: Fare, fees, seat classes, blackout dates, and refundability terms.
 
-### Core Capabilities
-- **Natural Language Queries**: Describe what you want to extract in plain English
-- **Automatic Schema Generation**: Claude 4.5 generates Pydantic schemas from your query
-- **Intelligent Strategy Routing**: Automatically chooses between CSS (fast, free) and LLM (powerful) extraction
-- **Universal Compatibility**: Works on any website structure
-- **Semantic Understanding**: Handles filtering, sentiment analysis, categorization, and summarization
-- **Production-Ready**: Error handling, retries, rate limiting, robots.txt compliance
-- **Clean UX**: Beautiful output with internal logs hidden (use `--verbose` to debug)
+> Limitation: The system extracts from one page per request (by design for reliability and cost control). Orchestrate multi-page jobs at the workflow level.
+
+## What’s inside
+
+- **Agent Mode (User-friendly)**: Conversational interface with automatic URL discovery via Exa AI.
+- **CLI Mode (Scripting/CI)**: Direct commands for deterministic runs and pipelines.
+- **Schema Generation**: Claude creates Pydantic schemas from your intent for consistent JSON.
+- **Strategy Router**: Chooses CSS (fast, free) or LLM (semantic) extraction automatically.
+- **Validation**: Pydantic-backed validation for accuracy and downstream stability.
 
 ## 📋 Requirements
 
@@ -43,29 +43,26 @@ A production-ready universal web scraping system powered by **Claude 4.5 Sonnet*
 ## Installation
 
 ```bash
-# Clone repository
+# Clone and enter
 git clone <repo-url>
 cd hackathon
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Initialize Crawl4AI browser
-crawl4ai-setup
-
-# Verify installation
-crawl4ai-doctor
+# Initialize Crawl4AI browser (first time only)
+crawl4ai-setup && crawl4ai-doctor
 
 # Configure API keys
 cp .env.example .env
-# Edit .env and add:
-#   - ANTHROPIC_API_KEY (required)
-#   - EXA_API_KEY (optional, for web search in agent mode)
+# Edit .env and set at minimum:
+#   ANTHROPIC_API_KEY=...      # required
+#   EXA_API_KEY=...            # optional, for agent web search
 ```
 
 ## Quick Start
 
-### Agent Mode (Recommended for Exploration)
+### Agent Mode (recommended for non-technical teammates)
 
 #### Enhanced Interactive CLI (Recommended)
 
@@ -76,13 +73,11 @@ python agent_cli.py
 python agent_cli.py --verbose
 ```
 
-**Features:**
-- 🎨 Color-coded, formatted output (clean, no log spam!)
-- 📊 Tables for search results
-- 🔍 Syntax-highlighted JSON
+**What you’ll see:**
+- 🎨 Clean, color-coded output (no log spam)
+- 📊 Tidy result tables and syntax-highlighted JSON
 - 💾 Built-in save/export commands
 - 📈 Session statistics
-- ⌨️  Rich command system
 - 🔧 `--verbose` flag for debugging
 
 #### Basic Interactive Mode
@@ -123,7 +118,7 @@ python agent_main.py --query "Get details for Nike Air Max 90"
 python agent_main.py --query "Scrape news from BBC" --output results.json
 ```
 
-### CLI Mode (When You Know the URL)
+### CLI Mode (for pipelines and CI)
 
 ```bash
 # Extract Hacker News stories
@@ -153,21 +148,17 @@ python main.py "https://www.bbc.com/news" \
 | **Best For** | Exploration, unclear targets | Known URLs, scripting |
 | **Cost** | ~$0.01-$0.012/query | ~$0.003-$0.006/query |
 
-## Important Limitation: One Page at a Time
+## Important limitation: one page per request
 
-The scraper can only extract data from **ONE webpage per request**.
+Focused by design for reliability and cost control.
 
-**Examples:**
+Examples:
 - ✅ "Get details for Nike Air Max 90" → Finds and scrapes that product page
 - ❌ "Get all Nike products" → Too broad (thousands of pages)
 - ✅ "Scrape https://nike.com/product/air-max-90" → One specific page
-- ❌ "Scrape all products from Nike.com" → Multiple pages not supported
+- ❌ "Scrape all products from Nike.com" → Multi-page orchestration not included
 
-**The agent will ask for clarification:**
-```
-User: "Get Nike products"
-Agent: "Which specific Nike product would you like details for?"
-```
+When queries are ambiguous, the agent will ask clarifying questions.
 
 ## 📊 Architecture
 
@@ -199,7 +190,7 @@ User Query: URL + Natural Language
 
 ## Testing
 
-### Phase Tests (Agent Development)
+### Phase tests (agent development)
 
 ```bash
 # Phase 1: Setup verification
@@ -215,7 +206,7 @@ python test_phase3_agent.py
 python test_phase4_integration.py
 ```
 
-### Classic Scraper Tests
+### Classic scraper tests
 
 ```bash
 # Unit tests
@@ -269,14 +260,14 @@ CHUNK_TOKEN_THRESHOLD=2000
 CACHE_MODE=BYPASS
 ```
 
-## When to Use CSS vs LLM Strategy
+## When to use CSS vs LLM strategy
 
-### CSS Extraction (Fast, Free)
+### CSS extraction (fast, free)
 - Structured, predictable HTML
 - Simple data fields (titles, prices, dates)
 - No semantic understanding needed
 
-### LLM Extraction (Powerful, Flexible)
+### LLM extraction (powerful, flexible)
 - **Sentiment analysis** ("positive", "negative", "neutral")
 - **Filtering** ("only products with rating > 4")
 - **Summarization** ("one-sentence summary")
@@ -286,16 +277,16 @@ CACHE_MODE=BYPASS
 
 The scraper automatically chooses the optimal strategy based on your query.
 
-## Performance & Costs
+## Performance & costs
 
-### Agent Mode
+### Agent mode
 | Metric | Performance |
 |--------|-------------|
 | Response Time | 7-17s (includes search + scrape) |
 | Cost per Query | ~$0.01-$0.012 |
 | Success Rate | 95%+ |
 
-### CLI Mode
+### CLI mode
 | Metric | Performance |
 |--------|-------------|
 | Response Time | 6-12s |
@@ -303,7 +294,7 @@ The scraper automatically chooses the optimal strategy based on your query.
 | Success Rate | 95%+ |
 | Accuracy | 98%+ (with validation) |
 
-## Best Practices
+## Best practices
 
 ✅ **Rate Limiting**: Built-in delays between requests
 ✅ **robots.txt Compliance**: Automatic checking (override with `--ignore-robots`)
@@ -313,7 +304,7 @@ The scraper automatically chooses the optimal strategy based on your query.
 ✅ **Data Validation**: Pydantic schema validation
 ✅ **Anti-Bot Detection**: Viewport configuration, user-agent rotation
 
-##  Project Structure
+##  Project structure
 
 ```
 hackathon/
@@ -343,7 +334,7 @@ hackathon/
     └── reviews_sentiment.py
 ```
 
-## ✅ Getting Started Checklist
+## ✅ Getting started checklist
 
 1. Install dependencies: `pip install -r requirements.txt`
 2. Initialize browser: `crawl4ai-setup`
@@ -352,11 +343,11 @@ hackathon/
 5. Try the enhanced agent: `python agent_cli.py`
 6. For debugging, use: `python agent_cli.py --verbose`
 
-## 📖 CLI Reference
+## 📖 CLI reference
 
-### Agent Mode
+### Agent mode
 
-#### Enhanced CLI (Recommended)
+#### Enhanced CLI (recommended)
 ```bash
 python agent_cli.py [options]
 
@@ -384,7 +375,7 @@ Options:
   --verbose, -v         Enable debug logging
 ```
 
-### CLI Mode
+### CLI mode
 ```bash
 python main.py <url> <query> [options]
 
@@ -418,6 +409,31 @@ Options:
 - **Pydantic** - Data validation and schema management
 
 ## 📞 Support
+
+## Deployment options
+
+- **Docker**: Use the provided `Dockerfile` for reproducible runs in CI/CD or on-prem.
+- **Fly.io / Containers-as-a-Service**: `fly.toml` included for quick deployment.
+- **Cron/Workflow Orchestration**: Schedule CLI jobs and export JSON to S3, GCS, or data warehouses.
+
+## Security & compliance
+
+- Respects `robots.txt` by default (overridable with `--ignore-robots`, use responsibly).
+- Rate limiting and retries reduce operational risk for target sites.
+- No data is stored server-side by default; outputs are local unless you export.
+- Supports environment-based key management via `.env`.
+
+## Integration patterns
+
+- Trigger via CI and write JSON to artifacts
+- Pipe JSON into dbt/ETL (Airflow, Dagster, Prefect)
+- Wrap with a simple API (`api_server.py`) for internal consumers
+
+## ROI tips
+
+- Use CSS strategy for stable sites to minimize compute cost.
+- Use LLM strategy for semantic tasks (sentiment, classification, summaries).
+- Keep prompts and schemas tight; narrower schemas reduce tokens and errors.
 
 **Documentation:**
 - Agent mode: See `AGENT_USAGE.md`

@@ -244,95 +244,118 @@ async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     try:
-        # Get path to scraper subprocess script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        scraper_script = os.path.join(script_dir, "scraper_subprocess.py")
+        # Check if running in production (Fly.io)
+        is_production = os.getenv("FLY_APP_NAME") is not None
 
-        logger.info(f"🔧 Running scraper in subprocess: {url}")
+        if is_production:
+            # Production: Use Web Unlocker directly (no subprocess/Playwright)
+            logger.info(f"🔓 Running production scraper (Web Unlocker): {url}")
+            from production_scraper import production_scrape
 
-        # Run scraper in subprocess
-        process = await asyncio.create_subprocess_exec(
-            sys.executable,  # Use same Python interpreter
-            scraper_script,
-            json.dumps(scraper_input),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+            result_data = await production_scrape(url=url, query=extraction_query)
 
-        # Wait for completion with timeout (120 seconds)
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=120.0
-            )
-
-            # Log stderr for debugging
-            if stderr:
-                stderr_text = stderr.decode('utf-8')
-                logger.debug(f"Subprocess stderr: {stderr_text}")
-
-        except asyncio.TimeoutError:
-            logger.error(f"⏱️  Scraper subprocess timeout after 120s for {url}")
-            process.kill()
-            await process.wait()
             return {
                 "content": [{
                     "type": "text",
                     "text": json.dumps({
-                        "success": False,
+                        "success": True,
                         "url": url,
-                        "error": "Scraper timeout (120s exceeded)"
+                        "data": result_data
                     }, indent=2)
                 }],
-                "is_error": True
+                "is_error": False
             }
 
-        # Parse result
-        if process.returncode == 0:
-            stdout_text = stdout.decode('utf-8')
-            logger.debug(f"Subprocess stdout: {stdout_text[:500]}")
-            result = json.loads(stdout_text)
+        else:
+            # Local: Use subprocess to avoid event loop conflicts
+            logger.info(f"🔧 Running scraper in subprocess: {url}")
 
-            if result.get("success"):
-                return {
-                    "content": [{
-                        "type": "text",
-                        "text": json.dumps({
-                            "success": True,
-                            "url": url,
-                            "data": result["data"]
-                        }, indent=2)
-                    }]
-                }
-            else:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            scraper_script = os.path.join(script_dir, "scraper_subprocess.py")
+
+            # Run scraper in subprocess
+            process = await asyncio.create_subprocess_exec(
+                sys.executable,
+                scraper_script,
+                json.dumps(scraper_input),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            # Wait for completion with timeout (120 seconds)
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=120.0
+                )
+
+                # Log stderr for debugging
+                if stderr:
+                    stderr_text = stderr.decode('utf-8')
+                    logger.debug(f"Subprocess stderr: {stderr_text}")
+
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️  Scraper subprocess timeout after 120s for {url}")
+                process.kill()
+                await process.wait()
                 return {
                     "content": [{
                         "type": "text",
                         "text": json.dumps({
                             "success": False,
                             "url": url,
-                            "error": result.get("error", "Unknown error"),
-                            "error_type": result.get("error_type", "UnknownError")
+                            "error": "Scraper timeout (120s exceeded)"
                         }, indent=2)
                     }],
                     "is_error": True
                 }
-        else:
-            # Non-zero exit code
-            error_output = stderr.decode('utf-8') if stderr else "No error output"
-            logger.error(f"Scraper subprocess failed: {error_output}")
 
-            return {
-                "content": [{
-                    "type": "text",
-                    "text": json.dumps({
-                        "success": False,
-                        "url": url,
-                        "error": f"Scraper process failed: {error_output[:500]}"
-                    }, indent=2)
-                }],
-                "is_error": True
-            }
+            # Parse result (local subprocess mode)
+            if process.returncode == 0:
+                stdout_text = stdout.decode('utf-8')
+                logger.debug(f"Subprocess stdout: {stdout_text[:500]}")
+                result = json.loads(stdout_text)
+
+                if result.get("success"):
+                    return {
+                        "content": [{
+                            "type": "text",
+                            "text": json.dumps({
+                                "success": True,
+                                "url": url,
+                                "data": result["data"]
+                            }, indent=2)
+                        }]
+                    }
+                else:
+                    return {
+                        "content": [{
+                            "type": "text",
+                            "text": json.dumps({
+                                "success": False,
+                                "url": url,
+                                "error": result.get("error", "Unknown error"),
+                                "error_type": result.get("error_type", "UnknownError")
+                            }, indent=2)
+                        }],
+                        "is_error": True
+                    }
+            else:
+                # Non-zero exit code
+                error_output = stderr.decode('utf-8') if stderr else "No error output"
+                logger.error(f"Scraper subprocess failed: {error_output}")
+
+                return {
+                    "content": [{
+                        "type": "text",
+                        "text": json.dumps({
+                            "success": False,
+                            "url": url,
+                            "error": f"Scraper process failed: {error_output[:500]}"
+                        }, indent=2)
+                    }],
+                    "is_error": True
+                }
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse scraper output: {e}")

@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     BRIGHTDATA_PORT: int = 22225  # Default port for residential proxies
     PROXY_ROTATION: str = "request"  # "request" for new IP each time, "session" for sticky sessions
 
+    # Bright Data Web Unlocker Configuration
+    UNLOCKER_ENABLED: bool = False  # Enable Web Unlocker API for parallel extraction
+    UNLOCKER_API_TOKEN: Optional[str] = None  # API token from Web Unlocker zone
+    UNLOCKER_ZONE: Optional[str] = None  # Web Unlocker zone name
+    UNLOCKER_ENDPOINT: str = "https://api.brightdata.com/request"  # Web Unlocker API endpoint
+    UNLOCKER_TIMEOUT: int = 120  # Timeout for Web Unlocker requests (seconds)
+
     # Performance
     CHUNK_TOKEN_THRESHOLD: int = 2000
     WORD_COUNT_THRESHOLD: int = 10

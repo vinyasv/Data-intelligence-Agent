@@ -324,6 +324,165 @@ class WebExtractor:
             # No fallback available
             raise
 
+    async def extract_with_race(
+        self,
+        url: str,
+        query: str,
+        strategy_type: StrategyType,
+        strategy: Any,
+        pydantic_code: str = ""
+    ) -> ExtractionResult:
+        """
+        Extract data using PARALLEL RACE strategy.
+
+        Runs both Playwright+Proxies and Web Unlocker simultaneously,
+        returns whichever succeeds first, cancels the slower one.
+
+        This provides:
+        - Speed: Fast path wins when possible (~30s)
+        - Success: Unlocker wins when site is protected (~40-80s)
+        - Automatic: No manual selection needed
+
+        Args:
+            url: Target URL
+            query: Extraction query
+            strategy_type: Strategy type (LLM)
+            strategy: Strategy instance
+            pydantic_code: Pydantic validation code
+
+        Returns:
+            ExtractionResult from whichever method succeeds first
+        """
+        print(f"\n🔧 DEBUG: extract_with_race called!")
+        print(f"   UNLOCKER_ENABLED: {settings.UNLOCKER_ENABLED}")
+        print(f"   UNLOCKER_API_TOKEN: {settings.UNLOCKER_API_TOKEN is not None}")
+
+        if not settings.UNLOCKER_ENABLED or not settings.UNLOCKER_API_TOKEN:
+            # Web Unlocker not configured, fall back to regular extraction
+            logger.info("Web Unlocker not enabled, using Playwright-only extraction")
+            return await self.extract(
+                url=url,
+                query=query,
+                strategy_type=strategy_type,
+                strategy=strategy,
+                pydantic_code=pydantic_code
+            )
+
+        print("\n" + "="*70)
+        print("🏁 STARTING PARALLEL RACE EXTRACTION")
+        print(f"   Playwright+Proxies vs Web Unlocker")
+        print("="*70)
+        logger.info("🏁 Starting PARALLEL RACE: Playwright+Proxies vs Web Unlocker")
+
+        # Import Web Unlocker extractor
+        from extraction.unlocker_extractor import WebUnlockerExtractor
+
+        # Create Web Unlocker extractor
+        json_schema = getattr(strategy, 'schema', {})
+        unlocker = WebUnlockerExtractor(
+            anthropic_client=self.anthropic_client,
+            json_schema=json_schema,
+            query=query
+        )
+
+        # Create tasks for parallel execution
+        async def playwright_path():
+            """Playwright + Proxies extraction"""
+            try:
+                print("   🎭 Path 1: Playwright+Proxies started")
+                logger.info("   🎭 Path 1: Playwright+Proxies started")
+                result = await self.extract(
+                    url=url,
+                    query=query,
+                    strategy_type=strategy_type,
+                    strategy=strategy,
+                    pydantic_code=pydantic_code
+                )
+                if result.success and result.extracted_data:
+                    print("   ✅ Path 1: Playwright+Proxies SUCCEEDED")
+                    logger.info("   ✅ Path 1: Playwright+Proxies SUCCEEDED")
+                    return ("playwright", result)
+                else:
+                    print("   ⚠️  Path 1: Playwright+Proxies returned empty data")
+                    logger.warning("   ⚠️  Path 1: Playwright+Proxies returned empty data")
+                    return ("playwright", None)
+            except Exception as e:
+                print(f"   ❌ Path 1: Playwright+Proxies failed: {e}")
+                logger.error(f"   ❌ Path 1: Playwright+Proxies failed: {e}")
+                return ("playwright", None)
+
+        async def unlocker_path():
+            """Web Unlocker HTTP extraction"""
+            try:
+                print("   🔓 Path 2: Web Unlocker started")
+                logger.info("   🔓 Path 2: Web Unlocker started")
+                extracted_data = await unlocker.extract(url)
+                if extracted_data:
+                    logger.info("   ✅ Path 2: Web Unlocker SUCCEEDED")
+                    result = ExtractionResult(
+                        url=url,
+                        query=query,
+                        extracted_data=extracted_data,
+                        extraction_strategy="web_unlocker",
+                        success=True
+                    )
+                    return ("unlocker", result)
+                else:
+                    logger.warning("   ⚠️  Path 2: Web Unlocker returned no data")
+                    return ("unlocker", None)
+            except Exception as e:
+                logger.error(f"   ❌ Path 2: Web Unlocker failed: {e}")
+                return ("unlocker", None)
+
+        # Race both paths
+        playwright_task = asyncio.create_task(playwright_path())
+        unlocker_task = asyncio.create_task(unlocker_path())
+
+        try:
+            # Wait for first to complete
+            done, pending = await asyncio.wait(
+                {playwright_task, unlocker_task},
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            # Get the winner
+            winner_task = done.pop()
+            winner_name, winner_result = await winner_task
+
+            # Cancel the slower task
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+            # Check if winner succeeded
+            if winner_result and winner_result.success:
+                print(f"\n🏆 RACE WINNER: {winner_name.upper()} (other task cancelled)\n")
+                logger.info(f"🏆 RACE WINNER: {winner_name.upper()} (other task cancelled)")
+                return winner_result
+
+            # Winner failed, wait for the other task
+            logger.warning(f"⚠️  {winner_name.upper()} completed first but failed, waiting for other task...")
+
+            # Re-enable the cancelled task (it might have already completed)
+            loser_task = pending.pop() if pending else None
+            if loser_task and not loser_task.done():
+                loser_name, loser_result = await loser_task
+                if loser_result and loser_result.success:
+                    logger.info(f"✅ Second method ({loser_name.upper()}) succeeded")
+                    return loser_result
+
+            # Both failed
+            raise ExtractionError("Both Playwright and Web Unlocker extraction failed")
+
+        except asyncio.CancelledError:
+            # Clean up tasks if race is cancelled
+            playwright_task.cancel()
+            unlocker_task.cancel()
+            raise
+
 
 # Convenience function (kept for backward compatibility)
 async def extract_from_url(

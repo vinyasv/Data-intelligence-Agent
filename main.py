@@ -191,7 +191,8 @@ async def scrape(
     extractor = WebExtractor(use_undetected=use_undetected)
 
     try:
-        extraction_result = await extractor.extract(
+        # Use parallel race extraction (Playwright+Proxies vs Web Unlocker)
+        extraction_result = await extractor.extract_with_race(
             url=url,
             query=query,
             strategy_type=strategy_type,

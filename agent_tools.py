@@ -265,7 +265,14 @@ async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
                 process.communicate(),
                 timeout=120.0
             )
+
+            # Log stderr for debugging
+            if stderr:
+                stderr_text = stderr.decode('utf-8')
+                logger.debug(f"Subprocess stderr: {stderr_text}")
+
         except asyncio.TimeoutError:
+            logger.error(f"⏱️  Scraper subprocess timeout after 120s for {url}")
             process.kill()
             await process.wait()
             return {
@@ -282,7 +289,9 @@ async def scrape_url(args: Dict[str, Any]) -> Dict[str, Any]:
 
         # Parse result
         if process.returncode == 0:
-            result = json.loads(stdout.decode('utf-8'))
+            stdout_text = stdout.decode('utf-8')
+            logger.debug(f"Subprocess stdout: {stdout_text[:500]}")
+            result = json.loads(stdout_text)
 
             if result.get("success"):
                 return {

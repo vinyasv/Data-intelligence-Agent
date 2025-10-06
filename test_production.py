@@ -9,40 +9,40 @@ import json
 import time
 from typing import Dict, Any
 
-# Production URL
-PROD_URL = "https://data-intelligence-agent.fly.dev"
+# Production URL (Web Unlocker-only endpoint)
+PROD_URL = "https://data-intelligence-agent.fly.dev/api/scrape"
 
 # Test cases covering different scenarios
 TEST_CASES = [
     {
-        "name": "Simple News Site",
-        "url": "https://news.ycombinator.com",
-        "query": "Extract top 3 stories with title and points",
+        "name": "Simple Static Site",
+        "url": "https://example.com",
+        "query": "Extract the main heading text",
         "timeout": 60
     },
     {
-        "name": "E-commerce Product Page",
-        "url": "https://www.amazon.com/dp/B08N5WRWNW",
-        "query": "Extract product name, price, and rating",
+        "name": "E-commerce - Abercrombie Product",
+        "url": "https://www.abercrombie.com/shop/wd/p/premium-heavyweight-20-tee-58965824",
+        "query": "Extract product name, price, and available colors",
+        "timeout": 120
+    },
+    {
+        "name": "E-commerce - Abercrombie Product List",
+        "url": "https://www.abercrombie.com/shop/us/mens-tops",
+        "query": "Extract first 5 products with name and price",
+        "timeout": 120
+    },
+    {
+        "name": "News Site - Hacker News",
+        "url": "https://news.ycombinator.com",
+        "query": "Extract top 5 stories with title and points",
         "timeout": 90
     },
     {
-        "name": "Wikipedia Article",
-        "url": "https://en.wikipedia.org/wiki/Web_scraping",
-        "query": "Extract the first paragraph and list any mentioned technologies",
-        "timeout": 60
-    },
-    {
-        "name": "GitHub Repository",
-        "url": "https://github.com/scrapy/scrapy",
-        "query": "Extract repository name, description, and star count",
-        "timeout": 60
-    },
-    {
-        "name": "Simple Static Site",
-        "url": "https://example.com",
-        "query": "Extract the main heading and any paragraphs",
-        "timeout": 30
+        "name": "News Site - BBC",
+        "url": "https://www.bbc.com/news",
+        "query": "Extract top 3 headlines",
+        "timeout": 90
     }
 ]
 
@@ -77,7 +77,7 @@ async def test_scraping_endpoint(test_case: Dict[str, Any]) -> Dict[str, Any]:
     print(f"   URL: {test_case['url']}")
     print(f"   Query: {test_case['query']}")
     print(f"{'─'*70}")
-    
+
     start_time = time.time()
     result = {
         "name": test_case['name'],
@@ -87,45 +87,53 @@ async def test_scraping_endpoint(test_case: Dict[str, Any]) -> Dict[str, Any]:
         "duration": 0,
         "data": None
     }
-    
+
     try:
-        # Make request to production API
+        # Make request to production API (Web Unlocker direct endpoint)
         async with httpx.AsyncClient(timeout=test_case.get('timeout', 60)) as client:
             response = await client.post(
-                f"{PROD_URL}/api/chat",
+                PROD_URL,
                 json={
-                    "message": f"Scrape {test_case['url']} and {test_case['query']}"
+                    "url": test_case['url'],
+                    "query": test_case['query']
                 }
             )
-            
+
             duration = time.time() - start_time
             result['duration'] = duration
-            
+
             if response.status_code == 200:
                 data = response.json()
-                result['success'] = True
-                result['data'] = data
-                
-                print(f"✅ SUCCESS ({duration:.2f}s)")
-                print(f"   Response preview: {str(data)[:200]}...")
-                
+
+                # Check if extraction succeeded
+                if data.get("success"):
+                    result['success'] = True
+                    result['data'] = data['data']
+
+                    print(f"✅ SUCCESS ({duration:.2f}s)")
+                    print(f"   Data preview: {json.dumps(data['data'], indent=2)[:300]}...")
+                else:
+                    result['error'] = data.get('error', 'Unknown error')
+                    print(f"❌ EXTRACTION FAILED")
+                    print(f"   Error: {result['error']}")
+
             else:
                 result['error'] = f"HTTP {response.status_code}: {response.text[:200]}"
-                print(f"❌ FAILED - Status: {response.status_code}")
+                print(f"❌ HTTP FAILED - Status: {response.status_code}")
                 print(f"   Error: {response.text[:200]}")
-                
+
     except asyncio.TimeoutError:
         duration = time.time() - start_time
         result['duration'] = duration
         result['error'] = f"Timeout after {duration:.2f}s"
         print(f"⏱️  TIMEOUT after {duration:.2f}s")
-        
+
     except Exception as e:
         duration = time.time() - start_time
         result['duration'] = duration
         result['error'] = str(e)
         print(f"❌ ERROR: {e}")
-    
+
     return result
 
 
@@ -133,24 +141,22 @@ async def run_production_tests():
     """Run all production tests"""
     print("\n" + "="*70)
     print("🚀 PRODUCTION SCRAPING TEST SUITE")
+    print("   Web Unlocker-Only Mode (No Playwright)")
     print("="*70)
     print(f"Target: {PROD_URL}")
     print(f"Tests: {len(TEST_CASES)}")
-    
-    # Health check first
-    is_healthy = await test_health_check()
-    if not is_healthy:
-        print("\n❌ Service is not healthy. Aborting tests.")
-        return
-    
+
     # Run tests
     results = []
-    for test_case in TEST_CASES:
+    for i, test_case in enumerate(TEST_CASES, 1):
+        print(f"\n[{i}/{len(TEST_CASES)}]")
         result = await test_scraping_endpoint(test_case)
         results.append(result)
-        
-        # Wait between tests to avoid overloading
-        await asyncio.sleep(2)
+
+        # Wait between tests to avoid rate limiting
+        if i < len(TEST_CASES):
+            print("\n⏸️  Waiting 5s before next test...")
+            await asyncio.sleep(5)
     
     # Summary
     print("\n" + "="*70)

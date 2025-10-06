@@ -96,6 +96,9 @@ async def run_scraper(input_data: Dict[str, Any]) -> Dict[str, Any]:
 def main():
     """Main entry point"""
     try:
+        # Debug logging to stderr
+        print("🔧 Scraper subprocess started", file=sys.stderr, flush=True)
+
         # Read input from command line argument or stdin
         if len(sys.argv) > 1:
             # Input from command line argument
@@ -106,9 +109,12 @@ def main():
 
         # Parse input
         input_data = json.loads(input_json)
+        print(f"🔧 Parsed input: {input_data.get('url')}", file=sys.stderr, flush=True)
 
         # Run scraper
+        print("🔧 Starting scraper...", file=sys.stderr, flush=True)
         result = asyncio.run(run_scraper(input_data))
+        print(f"🔧 Scraper completed: success={result.get('success')}", file=sys.stderr, flush=True)
 
         # Output result as JSON
         print(json.dumps(result, ensure_ascii=False))

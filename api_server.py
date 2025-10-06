@@ -37,21 +37,57 @@ class ChatResponse(BaseModel):
     response: str
 
 
+class ScrapeRequest(BaseModel):
+    url: str
+    query: str
+
+
+@app.post("/api/scrape")
+async def scrape_direct(request: ScrapeRequest):
+    """Direct scrape endpoint (production: Web Unlocker only)"""
+    try:
+        import os
+
+        # Check if running in production (Fly.io)
+        is_production = os.getenv("FLY_APP_NAME") is not None
+
+        if is_production:
+            # Production: Use Web Unlocker only (no Playwright/Scrapy)
+            from production_scraper import production_scrape
+            result = await production_scrape(url=request.url, query=request.query)
+        else:
+            # Local: Use full scraper with Playwright
+            from main import scrape
+            result = await scrape(
+                url=request.url,
+                query=request.query,
+                respect_robots_txt=True,
+                skip_validation=False,
+                prefer_css=False,
+                stats=None
+            )
+
+        return {"success": True, "data": result}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Chat endpoint"""
     if not agent:
         raise HTTPException(status_code=500, detail="Agent not initialized")
-    
+
     try:
         # Get agent response
         response_parts = []
         async for chunk in agent.chat(request.message):
             response_parts.append(chunk)
-        
+
         full_response = "".join(response_parts)
         return ChatResponse(response=full_response)
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

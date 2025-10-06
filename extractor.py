@@ -449,28 +449,31 @@ class WebExtractor:
             winner_task = done.pop()
             winner_name, winner_result = await winner_task
 
-            # Cancel the slower task
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
-
             # Check if winner succeeded
             if winner_result and winner_result.success:
                 print(f"\n🏆 RACE WINNER: {winner_name.upper()} (other task cancelled)\n")
                 logger.info(f"🏆 RACE WINNER: {winner_name.upper()} (other task cancelled)")
+
+                # Cancel the slower task since we don't need it
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
                 return winner_result
 
-            # Winner failed, wait for the other task
+            # Winner failed, wait for the other task (don't cancel it!)
+            print(f"   ⚠️  {winner_name.upper()} completed first but failed, waiting for other task...")
             logger.warning(f"⚠️  {winner_name.upper()} completed first but failed, waiting for other task...")
 
-            # Re-enable the cancelled task (it might have already completed)
+            # Wait for the other task to complete
             loser_task = pending.pop() if pending else None
-            if loser_task and not loser_task.done():
+            if loser_task:
                 loser_name, loser_result = await loser_task
                 if loser_result and loser_result.success:
+                    print(f"   ✅ {loser_name.upper()} succeeded!\n")
                     logger.info(f"✅ Second method ({loser_name.upper()}) succeeded")
                     return loser_result
 

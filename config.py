@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     PROXY_ENABLED: bool = False
     BRIGHTDATA_USERNAME: Optional[str] = None  # Format: customer-USER-zone-ZONE or customer-USER-zone-ZONE-session-SESSION_ID
     BRIGHTDATA_PASSWORD: Optional[str] = None
-    BRIGHTDATA_HOST: str = "zproxy.lum-superproxy.io"  # Bright Data super proxy host
-    BRIGHTDATA_PORT: int = 22225  # Default port for residential proxies
+    BRIGHTDATA_HOST: str = "brd.superproxy.io"  # Bright Data super proxy host (updated 2025)
+    BRIGHTDATA_PORT: int = 33335  # Default port for residential proxies (updated 2025)
     PROXY_ROTATION: str = "request"  # "request" for new IP each time, "session" for sticky sessions
 
     # Bright Data Web Unlocker Configuration
